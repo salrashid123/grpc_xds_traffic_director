@@ -247,17 +247,50 @@ cat <<EOF > xds_bootstrap.json
 EOF
 ```
 
-copy `xds_bootstrap.json` to the client
+copy `xds_bootstrap.json` to the xds-client VM.
+
+
+Alternatively, you can hardcode the bootstrap config directly in code (remember to replace the `$PROJECT_NUMBER`). See [#4476](https://github.com/grpc/grpc-go/pull/4476)
+
+```golang
+	svcConfig := `
+	{
+		"xds_servers": [
+		  {
+			"server_uri": "trafficdirector.googleapis.com:443",
+			"channel_creds": [
+			  {
+				"type": "google_default"
+			  }
+			],
+			"server_features": [
+			  "xds_v3"
+			]
+		  }
+		],
+		"node": {
+		  "id": "projects/$PROJECT_NUMBER/networks/default/nodes/6d92e8e9-439b-454d-9500-b8ef02fc3553",
+		  "metadata": {
+			"TRAFFICDIRECTOR_NETWORK_NAME": "default"
+		  },
+		  "locality": {
+			"zone": "us-central1-a"
+		  }
+		}
+	  }
+`
+
+	resolver, err := xds.NewXDSResolverWithConfigForTesting([]byte(svcConfig))
+	conn, err := grpc.Dial(*address, grpc.WithTransportCredentials(ce), grpc.WithResolvers(resolver))
+```
+
+Anyway, assume you didn't hardcode,
 
 ```bash
 gcloud compute scp xds_bootstrap.json xds-client:/tmp/
 
 # Note, you can create xds_bootstrap file on your own if you want by getting the PROJECT_NUMBER from the metadata server on the xds-client
 # export PROJECT_NUMBER=`curl -s -H 'Metadata-Flavor: Google' http://metadata.google.internal/computeMetadata/v1/project/numeric-project-id`
-# TODO: figure out how to specify it all in code vs in an env-var file...
-##  maybe os.SetEnv("GRPC_XDS_BOOTSTRAP_CONFIG", "content_of_xds_bootstrap.json")
-### https://github.com/grpc/grpc-go/blob/master/internal/envconfig/xds.go#L38
-### or not https://github.com/grpc/grpc-go/issues/4124
 ```
 
 SSH to the client
