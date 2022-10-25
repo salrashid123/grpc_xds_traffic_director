@@ -257,6 +257,7 @@ gcloud compute scp xds_bootstrap.json xds-client:/tmp/
 # TODO: figure out how to specify it all in code vs in an env-var file...
 ##  maybe os.SetEnv("GRPC_XDS_BOOTSTRAP_CONFIG", "content_of_xds_bootstrap.json")
 ### https://github.com/grpc/grpc-go/blob/master/internal/envconfig/xds.go#L38
+### or not https://github.com/grpc/grpc-go/issues/4124
 ```
 
 SSH to the client
