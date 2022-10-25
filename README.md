@@ -251,6 +251,10 @@ copy `xds_bootstrap.json` to the client
 
 ```bash
 gcloud compute scp xds_bootstrap.json xds-client:/tmp/
+
+# Note, you can create xds_bootstrap file on your own if you want by getting the PROJECT_NUMBER from the metadata server on the xds-client
+# export PROJECT_NUMBER=`curl -s -H 'Metadata-Flavor: Google' http://metadata.google.internal/computeMetadata/v1/project/numeric-project-id`
+# TODO: figure out how to specify it all in code vs in an env-var file...
 ```
 
 SSH to the client
