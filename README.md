@@ -13,6 +13,7 @@ This document will not go into how Traffic Director or proxyless gRPC works but 
 
 
 ![images/arch.png](images/arch.png)
+
 (image taken from official google docs)
 
 ---
@@ -178,19 +179,19 @@ gcloud compute forwarding-rules create grpc-vm-forwarding-rule \
 
 At the end, you should have 
 
-- Healthcheck
+#### Healthcheck
 
 ![images/hc.png](images/hc.png)
 
-- Instance Group with two VMs
+#### Instance Group with two VMs
 
 ![images/ig.png](images/ig.png)
 
-- Routing Rules
+#### Routing Rules
 
 ![images/route.png](images/route.png)
 
-- Traffic Director with runnings service endpoint of `grpc-echo-service`
+#### Traffic Director with runnings service endpoint of `grpc-echo-service`
 
 ![images/td.png](images/td.png)
 
