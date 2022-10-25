@@ -1,0 +1,24 @@
+{
+  "xds_servers": [
+    {
+      "server_uri": "trafficdirector.googleapis.com:443",
+      "channel_creds": [
+        {
+          "type": "google_default"
+        }
+      ],
+      "server_features": [
+        "xds_v3"
+      ]
+    }
+  ],
+  "node": {
+    "id": "projects/$PROJECT_NUMBER/networks/default/nodes/6d92e8e9-439b-454d-9500-b8ef02fc3553",
+    "metadata": {
+      "TRAFFICDIRECTOR_NETWORK_NAME": "default"
+    },
+    "locality": {
+      "zone": "us-central1-a"
+    }
+  }
+}
