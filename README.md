@@ -108,10 +108,10 @@ gcloud compute health-checks create grpc echoserverhc  --grpc-service-name echo.
 
 # create an instance template specifying the image we built
 gcloud compute  instance-templates create-with-container grpc-td --machine-type=g1-small --no-address  \
-   --tags=grpc-td --image=cos-stable-101-17162-40-13 --image-project=cos-cloud \
+   --tags=grpc-td  \
      --container-image=$IMAGE \
      --scopes=https://www.googleapis.com/auth/cloud-platform  --service-account=$PROJECT_NUMBER-compute@developer.gserviceaccount.com  \
-     --container-restart-policy=always --labels=container-vm=cos-stable-101-17162-40-13
+     --container-restart-policy=always
 
 # create an instance group; we're using us-central1-a here but you can repeat the sequence for N zones
 gcloud compute  instance-groups managed create grpc-ig-central \
@@ -145,7 +145,7 @@ gcloud compute backend-services add-backend grpc-echo-service \
   --instance-group-zone us-central1-a \
   --global
 
-# create a urlmap of the backens and hosts.  Make sure the $PROJECT_ID value is set on the environment
+# create a urlmap of the backends and hosts.  Make sure the $PROJECT_ID value is set on the environment
 gcloud compute url-maps import grpc-vm-url-map << EOF                                                                                            
 name: grpc-vm-url-map
 defaultService: projects/$PROJECT_ID/global/backendServices/grpc-echo-service
@@ -200,111 +200,49 @@ At the end, you should have
 For a client, we need to create a VM and run our sample there
 
 ```bash
- gcloud compute instances create xds-client      --image-family=debian-10  \
+ gcloud compute instances create xds-client      --image-family=debian-11  \
       --image-project=debian-cloud    \
-      --scopes=https://www.googleapis.com/auth/cloud-platform  --service-account=$PROJECT_NUMBER-compute@developer.gserviceaccount.com  
+      --scopes=https://www.googleapis.com/auth/cloud-platform  --zone=us-central1-a --service-account=$PROJECT_NUMBER-compute@developer.gserviceaccount.com  
 ```
 
 in my case the instances we have now are
+
 ```bash
 $ gcloud compute instances list
-    NAME          ZONE           MACHINE_TYPE   PREEMPTIBLE  INTERNAL_IP  EXTERNAL_IP    STATUS
-    grpc-ig-3kb7  us-central1-a  g1-small                    10.128.0.13                 RUNNING
-    grpc-ig-bjfk  us-central1-a  g1-small                    10.128.0.14                 RUNNING
-    xds-client    us-central1-a  n1-standard-1               10.128.0.15  34.170.28.112  RUNNING
+    NAME           ZONE           MACHINE_TYPE   PREEMPTIBLE  INTERNAL_IP    EXTERNAL_IP  STATUS
+    grpc-ig-856t   us-central1-a  g1-small                    10.128.15.194               RUNNING
+    grpc-ig-wk6m   us-central1-a  g1-small                    10.128.15.195               RUNNING
+    xds-client     us-central1-a  n1-standard-1               10.128.15.197  34.71.72.77  RUNNING
+
+
 ```
 
-Now create a bootstrap config file (again make sure the file has the `$PROJECT_NUMBER` populated)
-
-- `xds_bootstrap.json`
-
-```json
-cat <<EOF > xds_bootstrap.json
-{
-  "xds_servers": [
-    {
-      "server_uri": "trafficdirector.googleapis.com:443",
-      "channel_creds": [
-        {
-          "type": "google_default"
-        }
-      ],
-      "server_features": [
-        "xds_v3"
-      ]
-    }
-  ],
-  "node": {
-    "id": "projects/$PROJECT_NUMBER/networks/default/nodes/6d92e8e9-439b-454d-9500-b8ef02fc3553",
-    "metadata": {
-      "TRAFFICDIRECTOR_NETWORK_NAME": "default"
-    },
-    "locality": {
-      "zone": "us-central1-a"
-    }
-  }
-}
-EOF
-```
-
-copy `xds_bootstrap.json` to the xds-client VM.
-
-
-Alternatively, you can hardcode the bootstrap config directly in code (remember to replace the `$PROJECT_NUMBER`). See [#4476](https://github.com/grpc/grpc-go/pull/4476)
-
-```golang
-	svcConfig := `
-	{
-		"xds_servers": [
-		  {
-			"server_uri": "trafficdirector.googleapis.com:443",
-			"channel_creds": [
-			  {
-				"type": "google_default"
-			  }
-			],
-			"server_features": [
-			  "xds_v3"
-			]
-		  }
-		],
-		"node": {
-		  "id": "projects/$PROJECT_NUMBER/networks/default/nodes/6d92e8e9-439b-454d-9500-b8ef02fc3553",
-		  "metadata": {
-			"TRAFFICDIRECTOR_NETWORK_NAME": "default"
-		  },
-		  "locality": {
-			"zone": "us-central1-a"
-		  }
-		}
-	  }
-`
-
-	resolver, err := xds.NewXDSResolverWithConfigForTesting([]byte(svcConfig))
-	conn, err := grpc.Dial(*address, grpc.WithTransportCredentials(ce), grpc.WithResolvers(resolver))
-```
-
-Anyway, assume you didn't hardcode,
+SSH to `xds-client` vm
 
 ```bash
-gcloud compute scp xds_bootstrap.json xds-client:/tmp/
+gcloud compute ssh xds-client --zone  us-central1-a
 
-# Note, you can create xds_bootstrap file on your own if you want by getting the PROJECT_NUMBER from the metadata server on the xds-client
-# export PROJECT_NUMBER=`curl -s -H 'Metadata-Flavor: Google' http://metadata.google.internal/computeMetadata/v1/project/numeric-project-id`
-```
+# run
+sudo apt-get update && sudo apt-get install wget zip git -y
 
-SSH to the client
-
-```bash
-gcloud compute ssh xds-client
-
-sudo su -
-apt-get install git wget
-
-# install golang
-wget https://go.dev/dl/go1.19.2.linux-amd64.tar.gz
-rm -rf /usr/local/go && tar -C /usr/local -xzf go1.19.2.linux-amd64.tar.gz
+# Install golang
+wget https://golang.org/dl/go1.20.1.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.20.1.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
+```
+
+Configure the bootstrap file and acquire the grpcClient:
+
+```bash
+git clone https://github.com/GoogleCloudPlatform/traffic-director-grpc-bootstrap.git
+cd traffic-director-grpc-bootstrap/
+
+go build .
+export PROJECT_NUMBER=`curl -s "http://metadata.google.internal/computeMetadata/v1/project/numeric-project-id" -H "Metadata-Flavor: Google"`
+
+./td-grpc-bootstrap --gcp-project-number=$PROJECT_NUMBER  --output=xds_bootstrap.json
+
+export GRPC_XDS_BOOTSTRAP=`pwd`/xds_bootstrap.json
 
 git clone https://github.com/salrashid123/grpc_xds_traffic_director.git
 cd grpc_xds_traffic_director/
@@ -313,18 +251,17 @@ cd grpc_xds_traffic_director/
 First test with DNS resolution (note, the hostname for one of the servers will be different for you)
 
 ```bash
-go run client/grpc_client.go --host dns:///grpc-ig-3kb7:50051 
-  2022/10/25 02:25:01 Unary Request Response:  SayHelloUnary Response 3a81e3ae-540c-11ed-9ed0-42010a80000d
+go run client/grpc_client.go --host dns:///grpc-ig-856t:50051
+  2024/03/30 15:03:20 Unary Request Response:  SayHelloUnary Response a5607030-eea6-11ee-b49b-42010a800fc2
 
-go run client/grpc_client.go --host dns:///grpc-ig-bjfk:50051 
-  2022/10/25 02:25:32 Unary Request Response:  SayHelloUnary Response 4d106659-540c-11ed-bfec-42010a80000e
+go run client/grpc_client.go --host dns:///grpc-ig-wk6m:50051 
+  2024/03/30 15:03:44 Unary Request Response:  SayHelloUnary Response b3dc7a37-eea6-11ee-85b0-42010a800fc3
 ```
 
 Not test with the GRPC servers
 
 
 ```bash
-export GRPC_XDS_BOOTSTRAP=/tmp/xds_bootstrap.json
 
 # for verbose logging (its a lot)
 # export GRPC_GO_LOG_VERBOSITY_LEVEL=99
@@ -333,16 +270,16 @@ export GRPC_XDS_BOOTSTRAP=/tmp/xds_bootstrap.json
 # export GRPC_VERBOSITY=DEBUG
 
 go run client/grpc_client.go --host xds:///grpc.domain.com:50051
-  2022/10/25 02:26:02 Unary Request Response:  SayHelloUnary Response 5e92d765-540c-11ed-bfec-42010a80000e
+  2024/03/30 15:03:20 Unary Request Response:  SayHelloUnary Response a5607030-eea6-11ee-b49b-42010a800fc2
 
 go run client/grpc_client.go --host xds:///grpc.domain.com:50051
-  2022/10/25 02:26:05 Unary Request Response:  SayHelloUnary Response 60c3f327-540c-11ed-bfec-42010a80000e
+  2024/03/30 15:04:39 Unary Request Response:  SayHelloUnary Response d486e987-eea6-11ee-b49b-42010a800fc2
 
 go run client/grpc_client.go --host xds:///grpc.domain.com:50051
-  2022/10/25 02:26:08 Unary Request Response:  SayHelloUnary Response 624cebe9-540c-11ed-9ed0-42010a80000d
+  2024/03/30 15:04:59 Unary Request Response:  SayHelloUnary Response e0736ed4-eea6-11ee-b49b-42010a800fc2
 
 go run client/grpc_client.go --host xds:///grpc.domain.com:50051
-  2022/10/25 02:26:13 Unary Request Response:  SayHelloUnary Response 653d3fa6-540c-11ed-9ed0-42010a80000d
+  2024/03/30 15:05:06 Unary Request Response:  SayHelloUnary Response e4cb758a-eea6-11ee-85b0-42010a800fc3
 
 ```
 
@@ -369,7 +306,11 @@ gcloud compute url-maps delete grpc-vm-url-map  -q
 
 gcloud  compute backend-services delete  grpc-echo-service --global -q
 
-gcloud compute  instance-groups managed delete grpc-ig-central -q
+gcloud compute  instance-groups managed delete grpc-ig-central --zone=us-central1-a -q
 
 gcloud compute  instance-templates delete grpc-td  -q
+
+gcloud compute routers nats delete nat-all --router=router --region=us-central1 -q
+gcloud compute routers delete router --region=us-central1 -q
+gcloud compute addresses delete natip --region=us-central1 -q
 ```
