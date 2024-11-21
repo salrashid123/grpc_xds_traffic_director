@@ -1,10 +1,10 @@
-FROM golang:1.19 as build
+FROM golang:1.22 as build
 
 RUN apt-get update -y && apt-get install -y build-essential wget unzip curl git
 
 
-RUN curl -OL https://github.com/google/protobuf/releases/download/v3.19.0/protoc-3.19.0-linux-x86_64.zip && \
-    unzip protoc-3.19.0-linux-x86_64.zip -d protoc3 && \
+RUN curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-linux-x86_64.zip && \
+    unzip protoc-28.3-linux-x86_64.zip -d protoc3 && \
     mv protoc3/bin/* /usr/local/bin/ && \
     mv protoc3/include/* /usr/local/include/
 
